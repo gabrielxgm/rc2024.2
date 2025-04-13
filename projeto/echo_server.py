@@ -1,7 +1,6 @@
 import socket
 import threading
 import configparser
-import os
 
 # Carregar configurações
 config = configparser.ConfigParser()
@@ -14,7 +13,24 @@ FILE_B = config['SERVER_CONFIG']['FILE_B']
 def handle_tcp_client(conn, addr):
     print(f"TCP Client connected from {addr}")
     with conn:
-        with open(FILE_B, 'wb') as f_out:
+        # Recebe o nome do arquivo primeiro (até encontrar \n)
+        buffer = b''
+        while b'\n' not in buffer:
+            byte = conn.recv(1)
+            if not byte:
+                print("Conexão encerrada antes do nome do arquivo ser enviado.")
+                return
+            buffer += byte
+        filename = buffer.decode('utf-8').strip()
+
+        # Valida nome de arquivo permitido
+        if filename not in [FILE_A, FILE_B]:
+            print(f"Nome de arquivo não permitido: {filename}")
+            conn.close()
+            return
+
+        print(f"Salvando conteúdo no arquivo: {filename}")
+        with open(filename, 'wb') as f_out:
             while True:
                 data = conn.recv(1024)
                 if not data:
