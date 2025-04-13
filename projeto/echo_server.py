@@ -33,34 +33,62 @@ def udp_echo():
 
 def handle_tcp_client(conn, addr):
     print(f"TCP Client connected from {addr}")
-    with conn:
-        while True:
-            data = conn.recv(1024)
-            if not data:
-                break
-            print(f"TCP Received from {addr}: {data.decode('utf-8')}")
-            # Comando 'get' para solicitar o arquivo
-            if data.decode().startswith("get"):
-                _, arquivo = data.decode().split(',')
-                if arquivo == FILE_A and os.path.exists(FILE_A):
-                    with open(FILE_A, 'rb') as f:
-                        file_data = f.read()
-                        conn.sendall(file_data)
-                    print(f"Sent file {arquivo} to {addr}")
-                elif arquivo == FILE_B and os.path.exists(FILE_B):
-                    with open(FILE_B, 'rb') as f:
-                        file_data = f.read()
-                        conn.sendall(file_data)
-                    print(f"Sent file {arquivo} to {addr}")
-                else:
-                    conn.sendall(b"ERROR: File not found")
-                break
-
-        # Aguardar confirmação do cliente (ACK)
+    try:
+        # Receber o comando get
         data = conn.recv(1024)
-        if data.decode().startswith("ftcp_ack"):
-            print(f"Received ACK: {data.decode()}")
-    print(f"TCP Client disconnected from {addr}")
+        if not data:
+            return
+            
+        command = data.decode('utf-8')
+        print(f"TCP Received from {addr}: {command}")
+        
+        # Verificar se é um comando get válido
+        if command.startswith("get"):
+            parts = command.split(',')
+            if len(parts) != 2:
+                conn.sendall(b"ERROR: Invalid command format")
+                return
+                
+            _, arquivo = parts
+            
+            # Verificar qual arquivo enviar
+            if arquivo == FILE_A and os.path.exists(FILE_A):
+                with open(FILE_A, 'rb') as f:
+                    file_data = f.read()
+                    conn.sendall(file_data)
+                print(f"Sent file {arquivo} ({len(file_data)} bytes) to {addr}")
+            elif arquivo == FILE_B and os.path.exists(FILE_B):
+                with open(FILE_B, 'rb') as f:
+                    file_data = f.read()
+                    conn.sendall(file_data)
+                print(f"Sent file {arquivo} ({len(file_data)} bytes) to {addr}")
+            else:
+                conn.sendall(b"ERROR: File not found")
+                return
+        else:
+            conn.sendall(b"ERROR: Unknown command")
+            return
+            
+        # Fecha apenas o canal de envio e mantém o canal de recebimento aberto
+        conn.shutdown(socket.SHUT_WR)
+        
+        # Aguardar confirmação do cliente (ACK)
+        ack_data = conn.recv(1024)
+        if ack_data:
+            ack_message = ack_data.decode('utf-8')
+            print(f"Received ACK from {addr}: {ack_message}")
+            
+            # Verificar se o ACK contém o número correto de bytes
+            if ack_message.startswith("ftcp_ack"):
+                parts = ack_message.split(',')
+                if len(parts) == 2:
+                    bytes_received = int(parts[1])
+                    print(f"Client confirmed receipt of {bytes_received} bytes")
+    except Exception as e:
+        print(f"Error handling client {addr}: {e}")
+    finally:
+        conn.close()
+        print(f"TCP Client disconnected from {addr}")
 
 def tcp_echo():
     tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
