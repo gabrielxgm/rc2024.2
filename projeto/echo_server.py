@@ -1,3 +1,4 @@
+
 import socket
 import threading
 import configparser
@@ -11,31 +12,13 @@ TCP_PORT = int(config['SERVER_CONFIG']['TCP_PORT'])
 UDP_NEGOTIATION_PORT = int(config['SERVER_CONFIG']['UDP_NEGOTIATION_PORT'])
 FILE_A = config['SERVER_CONFIG']['FILE_A']
 FILE_B = config['SERVER_CONFIG']['FILE_B']
-
-def udp_echo():
-    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_sock.bind(('0.0.0.0', UDP_NEGOTIATION_PORT))
-    print(f"UDP server listening on port {UDP_NEGOTIATION_PORT}")
-    while True:
-        data, addr = udp_sock.recvfrom(1024)
-        if not data:
-            continue
-        print(f"UDP Received from {addr}: {data.decode('utf-8')}")
-        
-        # Processar a solicitação REQUEST
-        if data.decode().startswith('REQUEST'):
-            _, protocolo, arquivo = data.decode().split(',')
-            if protocolo == "TCP" and arquivo in [FILE_A, FILE_B]:
-                response = f"RESPONSE,TCP,{TCP_PORT},{arquivo}"
-            else:
-                response = "ERROR,PROTOCOLO INVALIDO,,"
-            udp_sock.sendto(response.encode(), addr)
+BUFFER_SIZE = 1024
 
 def handle_tcp_client(conn, addr):
     print(f"TCP Client connected from {addr}")
     try:
         # Receber o comando get
-        data = conn.recv(1024)
+        data = conn.recv(BUFFER_SIZE)
         if not data:
             return
             
@@ -73,7 +56,7 @@ def handle_tcp_client(conn, addr):
         conn.shutdown(socket.SHUT_WR)
         
         # Aguardar confirmação do cliente (ACK)
-        ack_data = conn.recv(1024)
+        ack_data = conn.recv(BUFFER_SIZE)
         if ack_data:
             ack_message = ack_data.decode('utf-8')
             print(f"Received ACK from {addr}: {ack_message}")
@@ -102,22 +85,116 @@ def tcp_echo():
         client_thread.daemon = True
         client_thread.start()
 
-if __name__ == '__main__':
-    # Iniciar thread para UDP
-    udp_thread = threading.Thread(target=udp_echo)
+def udp_negotiation():
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_sock.bind(('0.0.0.0', UDP_NEGOTIATION_PORT))
+    print(f"UDP server listening on port {UDP_NEGOTIATION_PORT}")
+    while True:
+        data, addr = udp_sock.recvfrom(BUFFER_SIZE)
+        if not data:
+            continue
+        print(f"UDP Received from {addr}: {data.decode()}")
+        comando, protocolo, arquivo = data.decode().split(',')
+        if comando == "REQUEST" and protocolo == "TCP":
+            if arquivo in [FILE_A, FILE_B]:
+                # Responde com a porta TCP para o arquivo solicitado
+                response = f"RESPONSE,TCP,{TCP_PORT},{arquivo}"
+            else:
+                # Responde com erro se o arquivo não existir
+                response = "ERROR,PROTOCOLO INVALIDO,,"
+
+            udp_sock.sendto(response.encode(), addr)
+
+if __name__ == "__main__":
+    # Iniciar threads para UDP e TCP
+    udp_thread = threading.Thread(target=udp_negotiation)
     udp_thread.daemon = True
     udp_thread.start()
 
-    # Iniciar thread para TCP
     tcp_thread = threading.Thread(target=tcp_echo)
     tcp_thread.daemon = True
     tcp_thread.start()
 
     print("Servidor rodando. Pressione Ctrl+C para encerrar.")
-
     try:
-        # Mantém o programa principal em execução
         while True:
             pass
     except KeyboardInterrupt:
         print("Servidor encerrado.")
+
+'''import socket
+import threading
+import configparser
+
+# Carregar configurações
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+UDP_NEGOTIATION_PORT = int(config['SERVER_CONFIG']['UDP_NEGOTIATION_PORT'])
+TCP_TRANSFER_PORT = int(config['SERVER_CONFIG']['TCP_PORT'])
+BUFFER_SIZE = 1024
+
+def handle_tcp_connection(conn, addr):
+    try:
+        print(f"Conexão TCP de {addr}")
+        request = conn.recv(BUFFER_SIZE).decode()
+        print(f"Requisição recebida: {request}")
+
+        if request.startswith("get,"):
+            filename = request.split(",")[1]
+
+            try:
+                with open(filename, "rb") as f:
+                    while True:
+                        chunk = f.read(BUFFER_SIZE)
+                        if not chunk:
+                            break
+                        conn.sendall(chunk)
+                print(f"Arquivo '{filename}' enviado com sucesso.")
+
+                # Esperar o ACK do cliente após o envio do arquivo
+                ack = conn.recv(BUFFER_SIZE).decode()
+                print(f"ACK recebido do cliente: {ack}")
+
+            except FileNotFoundError:
+                conn.sendall(b"Erro: Arquivo nao encontrado.")
+                print(f"Erro: Arquivo '{filename}' nao encontrado.")
+
+    except Exception as e:
+        print(f"Erro na conexao TCP: {e}")
+    finally:
+        conn.close()
+        print(f"Conexão TCP encerrada com {addr}")
+
+def start_server():
+    # Inicia socket UDP para negociação
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_sock.bind(("0.0.0.0", UDP_NEGOTIATION_PORT))
+    print(f"Servidor UDP escutando na porta {UDP_NEGOTIATION_PORT}...")
+
+    # Inicia socket TCP para transferência
+    tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_sock.bind(("0.0.0.0", TCP_TRANSFER_PORT))
+    tcp_sock.listen(5)
+    print(f"Servidor TCP aguardando conexões na porta {TCP_TRANSFER_PORT}...")
+
+    while True:
+        # Receber solicitação via UDP
+        data, addr = udp_sock.recvfrom(BUFFER_SIZE)
+        message = data.decode()
+        print(f"Solicitação UDP recebida de {addr}: {message}")
+
+        if message.startswith("REQUEST,TCP,"):
+            parts = message.split(",")
+            filename = parts[2]
+
+            response = f"RESPONSE,TCP,{TCP_TRANSFER_PORT},{filename}"
+            udp_sock.sendto(response.encode(), addr)
+            print(f"Resposta enviada para {addr}: {response}")
+
+            # Aceitar conexão TCP em paralelo
+            conn, tcp_addr = tcp_sock.accept()
+            threading.Thread(target=handle_tcp_connection, args=(conn, tcp_addr)).start()
+
+if __name__ == "__main__":
+    start_server()'''
