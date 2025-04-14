@@ -10,6 +10,14 @@ SERVER_ADDRESS = ('127.0.0.1', int(config['SERVER_CONFIG']['UDP_NEGOTIATION_PORT
 BUFFER_SIZE = 1024
 TCP_PORT = int(config['SERVER_CONFIG']['TCP_PORT'])
 
+"""
+Envia uma solicitação de negociação para o servidor via UDP.
+
+Parametros:
+    comando (str): O comando a ser enviado (nesta etapa, sempre "REQUEST").
+    protocolo (str): O protocolo de transferência desejado.
+    arquivo (str): O nome do arquivo a ser solicitado.
+"""
 def send_request(comando, protocolo, arquivo):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_sock:
@@ -29,7 +37,18 @@ def send_request(comando, protocolo, arquivo):
         print("Error: Server response timed out")
     except Exception as e:
         print(f"Error sending request: {e}")
-    
+
+
+"""
+Estabelece uma conexão TCP com o servidor e recebe o arquivo solicitado.
+
+Após receber o arquivo, envia uma confirmação (ACK) para o servidor
+com o número total de bytes recebidos.
+
+Parametros:
+    transfer_port (int): A porta TCP do servidor para a transferência do arquivo.
+    arquivo (str): O nome do arquivo esperado.
+"""
 def receive_file(transfer_port, arquivo):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
@@ -56,10 +75,12 @@ def receive_file(transfer_port, arquivo):
     except Exception as e:
         print(f"Error receiving file: {e}")
 
-
+"""
+Permite ao usuário escolher o protocolo de transferência
+"""
 def choose_protocol():
-    print("Escolha o protocolo (apenas TCP é aceito pelo servidor):")
-    print("1 - TCP")
+    print("Escolha o protocolo de transferencia:")
+    print("1 - TCP (recomendado)")
     print("2 - UDP")
     choice = input("Digite o número da sua escolha: ")
     if choice == '1':
@@ -70,6 +91,9 @@ def choose_protocol():
         print("Opção inválida. Usando TCP por padrão.")
         return "TCP"
 
+"""
+Permite ao usuário escolher o arquivo a ser solicitado do servidor.
+"""
 def choose_file():
     print("\nEscolha o arquivo que deseja solicitar:")
     print("1 - a.txt")

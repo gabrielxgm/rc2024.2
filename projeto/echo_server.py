@@ -14,6 +14,18 @@ FILE_A = config['SERVER_CONFIG']['FILE_A']
 FILE_B = config['SERVER_CONFIG']['FILE_B']
 BUFFER_SIZE = 1024
 
+
+"""
+Função para lidar com a transferencia de dados via TCP.
+
+Esta função é executada em uma thread separada para cada cliente TCP conectado.
+Ela recebe o comando 'get,<arquivo>' do cliente, envia o arquivo solicitado
+e aguarda a confirmação (ACK) do cliente.
+
+Parametros:
+    conn (socket.socket): O objeto socket da conexão TCP com o cliente.
+    addr (tuple): O endereço (IP, porta) do cliente conectado.
+"""
 def handle_tcp_client(conn, addr):
     print(f"TCP Client connected from {addr}")
     try:
@@ -73,6 +85,12 @@ def handle_tcp_client(conn, addr):
         conn.close()
         print(f"TCP Client disconnected from {addr}")
 
+"""
+Função para iniciar o servidor TCP que escuta por conexões de clientes.
+
+Este loop principal aceita novas conexões TCP e cria uma thread para
+manipular cada cliente conectado através da função handle_tcp_client.
+"""
 def tcp_echo():
     tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -85,6 +103,13 @@ def tcp_echo():
         client_thread.daemon = True
         client_thread.start()
 
+"""
+Função para iniciar o servidor UDP responsável pela negociação inicial.
+
+Este servidor escuta na porta UDP de negociação e processa as
+solicitações dos clientes para obter a porta de transferência TCP,
+tratando os erros de formato, arquivo e protocolo.
+"""
 def udp_negotiation():
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_sock.bind(('0.0.0.0', UDP_NEGOTIATION_PORT))
@@ -119,7 +144,7 @@ def udp_negotiation():
         udp_sock.sendto(response.encode(), addr)
 
 if __name__ == "__main__":
-    # Iniciar threads para UDP e TCP
+    # Iniciar threads para os servidores UDP (negociação) e TCP (transferência)
     udp_thread = threading.Thread(target=udp_negotiation)
     udp_thread.daemon = True
     udp_thread.start()
