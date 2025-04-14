@@ -56,24 +56,41 @@ def receive_file(transfer_port, arquivo):
     except Exception as e:
         print(f"Error receiving file: {e}")
 
+
+def choose_protocol():
+    print("Escolha o protocolo (apenas TCP é aceito pelo servidor):")
+    print("1 - TCP")
+    print("2 - UDP")
+    choice = input("Digite o número da sua escolha: ")
+    if choice == '1':
+        return "TCP"
+    elif choice == '2':
+        return "UDP"
+    else:
+        print("Opção inválida. Usando TCP por padrão.")
+        return "TCP"
+
 def choose_file():
-    print("Escolha o arquivo que deseja solicitar:")
+    print("\nEscolha o arquivo que deseja solicitar:")
     print("1 - a.txt")
     print("2 - b.txt")
-    choice = input("Digite o número da sua escolha: ")
+    print("3 - Outro")
+    choice = input("Digite sua escolha (1-3): ")
+    
     if choice == '1':
         return "a.txt"
     elif choice == '2':
         return "b.txt"
+    elif choice == '3':
+        return input("Digite o nome do arquivo: ")
     else:
-        print("Opção inválida. Usando o arquivo padrão a.txt.")
+        print("Opção inválida. Usando a.txt como padrão.")
         return "a.txt"
 
 if __name__ == "__main__":
     comando = "REQUEST"
-    protocolo = "TCP"
-    
-    # Permitir que o cliente escolha entre a.txt e b.txt
+
+    protocolo = choose_protocol()
     arquivo = choose_file()
 
     send_request(comando, protocolo, arquivo)

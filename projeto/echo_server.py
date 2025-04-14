@@ -93,17 +93,30 @@ def udp_negotiation():
         data, addr = udp_sock.recvfrom(BUFFER_SIZE)
         if not data:
             continue
+     
         print(f"UDP Received from {addr}: {data.decode()}")
-        comando, protocolo, arquivo = data.decode().split(',')
-        if comando == "REQUEST" and protocolo == "TCP":
-            if arquivo in [FILE_A, FILE_B]:
-                # Responde com a porta TCP para o arquivo solicitado
-                response = f"RESPONSE,TCP,{TCP_PORT},{arquivo}"
-            else:
-                # Responde com erro se o arquivo não existir
-                response = "ERROR,PROTOCOLO INVALIDO,,"
+        parts = data.decode().split(',')
 
+        if len(parts) != 3:
+            response = "ERROR,FORMATO INVALIDO,,"
             udp_sock.sendto(response.encode(), addr)
+            continue
+
+        comando, protocolo, arquivo = parts
+
+        if protocolo != "TCP":
+            response = "ERROR,PROTOCOLO INVALIDO,,"
+            udp_sock.sendto(response.encode(), addr)
+            continue
+
+        if arquivo not in [FILE_A, FILE_B]:
+            response = "ERROR,ARQUIVO INEXISTENTE,,"
+            udp_sock.sendto(response.encode(), addr)
+            continue
+
+        # Tudo certo: responde com a porta TCP
+        response = f"RESPONSE,TCP,{TCP_PORT},{arquivo}"
+        udp_sock.sendto(response.encode(), addr)
 
 if __name__ == "__main__":
     # Iniciar threads para UDP e TCP
