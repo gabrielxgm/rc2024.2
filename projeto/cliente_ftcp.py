@@ -13,7 +13,7 @@ TCP_PORT = int(config['SERVER_CONFIG']['TCP_PORT'])
 def send_request(comando, protocolo, arquivo):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_sock:
-            udp_sock.settimeout(5) # Defina um tempo de espera para a resposta
+            udp_sock.settimeout(5)  # Defina um tempo de espera para a resposta
             udp_sock.sendto(f"{comando},{protocolo},{arquivo}".encode(), SERVER_ADDRESS)
             print(f"Sent: {comando},{protocolo},{arquivo}")
             data, server = udp_sock.recvfrom(BUFFER_SIZE)
@@ -21,6 +21,7 @@ def send_request(comando, protocolo, arquivo):
             if data.startswith(b"RESPONSE"):
                 transfer_port = int(data.decode().split(",")[2])
                 print(f"Server response: {data.decode()}")
+                # Estabelecer a conexão TCP para receber o arquivo
                 receive_file(transfer_port, arquivo)
             else:
                 print(f"Error: {data.decode()}")
@@ -29,16 +30,6 @@ def send_request(comando, protocolo, arquivo):
     except Exception as e:
         print(f"Error sending request: {e}")
 
-"""
- Estabelece uma conexão TCP com o servidor e recebe o arquivo solicitado.
- 
- Após receber o arquivo, envia uma confirmação (ACK) para o servidor
- com o número total de bytes recebidos.
- 
- Parametros:
-     transfer_port (int): A porta TCP do servidor para a transferência do arquivo.
-     arquivo (str): O nome do arquivo esperado.
- """
 def receive_file(transfer_port, arquivo):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
@@ -46,7 +37,7 @@ def receive_file(transfer_port, arquivo):
             print(f"Connected to server on TCP port {transfer_port}")
             tcp_sock.sendall(f"get,{arquivo}".encode())
             print(f"Sent: get,{arquivo}")
-            
+
             received_data = b""
             while True:
                 data = tcp_sock.recv(BUFFER_SIZE)
@@ -54,24 +45,35 @@ def receive_file(transfer_port, arquivo):
                     break
                 received_data += data
 
-            # Exibir o tamanho do arquivo recebido em bytes
             file_size = len(received_data)
             print(f"Received the complete file {arquivo} of size {file_size} bytes")
 
-            # Enviar a confirmação (ACK) com o número de bytes recebidos no formato desejado
             ack_message = f"ftcp_ack,{file_size}".encode()
             tcp_sock.sendall(ack_message)
             print(f"Sent acknowledgment: ftcp_ack,{file_size} bytes")
     except Exception as e:
         print(f"Error receiving file: {e}")
 
+def choose_protocol():
+    print("Escolha o protocolo de transferencia:")
+    print("1 - TCP (recomendado)")
+    print("2 - UDP")
+    choice = input("Digite o número da sua escolha: ")
+    if choice == '1':
+        return "TCP"
+    elif choice == '2':
+        return "UDP"
+    else:
+        print("Opção inválida. Usando TCP por padrão.")
+        return "TCP"
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print("Uso: python cliente_ftcp.py <nome_do_arquivo>")
         sys.exit(1)
 
     arquivo = sys.argv[1]
+    protocolo = choose_protocol()
     comando = "REQUEST"
-    protocolo = "TCP"
 
     send_request(comando, protocolo, arquivo)
